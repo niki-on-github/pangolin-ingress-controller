@@ -1,0 +1,22 @@
+apiVersion: v2
+name: pangolin-ingress-controller
+description: A Kubernetes Ingress Controller that exposes services via Pangolin tunnels
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.28.0-0"
+home: https://github.com/wizzz/pangolin-ingress-controller
+sources:
+  - https://github.com/wizzz/pangolin-ingress-controller
+maintainers:
+  - name: wizzz
+    email: stefan@wizzz.net
+keywords:
+  - ingress
+  - ingress-controller
+  - pangolin
+  - tunnel
+  - kubernetes
+annotations:
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/category: networking

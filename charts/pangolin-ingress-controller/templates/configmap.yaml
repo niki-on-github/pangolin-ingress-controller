@@ -1,0 +1,14 @@
+{{- if .Values.config.tunnelClassMapping }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pangolin-ingress-controller.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pangolin-ingress-controller.labels" . | nindent 4 }}
+data:
+  tunnel-class-mapping: |
+    {{- range $key, $value := .Values.config.tunnelClassMapping }}
+    {{ $key }}={{ $value }}
+    {{- end }}
+{{- end }}

@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: pangolin
+  annotations:
+    ingressclass.kubernetes.io/is-default-class: "false"
+spec:
+  controller: pangolin.io/ingress-controller
+---
+# Optional: Additional IngressClasses for multi-tunnel setup
+# apiVersion: networking.k8s.io/v1
+# kind: IngressClass
+# metadata:
+#   name: pangolin-eu
+# spec:
+#   controller: pangolin.io/ingress-controller
+# ---
+# apiVersion: networking.k8s.io/v1
+# kind: IngressClass
+# metadata:
+#   name: pangolin-us
+# spec:
+#   controller: pangolin.io/ingress-controller

@@ -1,7 +1,7 @@
 # Pangolin Ingress Controller (PIC) — Technical Specification (MVP, Interop with pangolin-operator)
 
-**Status:** Draft v2  
-**Owner:** (to be decided)  
+**Status:** Draft v3  
+**Owner:** stefb@wizzz.net
 **Language:** Go (Golang)  
 **Scope:** Kubernetes controller that exposes selected Kubernetes Ingresses via Pangolin by **creating/updating `PangolinResource` CRDs**, delegating all Pangolin API interaction to the existing `pangolin-operator` project.
 
@@ -155,7 +155,7 @@ spec:
 PIC will:
 
 1. Resolve **tunnel name** (`default` in single-tunnel mode).
-2. Split host into `subdomain = "app"`, `domainName = "example.com"` unless overridden by annotations.
+2. Split host into `subdomain = "app"`, `domainName = "example.com"` unless overridden by annotations (see Host Splitting Rules below).
 3. Construct the backend endpoint:
    - Target host: `"my-app.prod.svc.cluster.local"`
    - Target port: `8080`
@@ -192,6 +192,32 @@ spec:
 > - Paths:
 >   - For MVP, PIC supports `path: "/"` only.  
 >   - Non-root paths may be rejected with a clear event + status, or mapped in a simple “prefix” fashion in a later iteration once the Pangolin-side routing model is confirmed.
+
+### 2.4 Host Splitting Rules
+
+PIC splits the `host` field into `subdomain` and `domainName` using the following algorithm:
+
+| Host | Subdomain | Domain | Notes |
+|------|-----------|--------|-------|
+| `app.example.com` | `app` | `example.com` | Standard case |
+| `api.staging.example.com` | `api.staging` | `example.com` | Multi-level subdomain preserved |
+| `example.com` | `""` (empty) | `example.com` | Apex domain |
+| `www.example.co.uk` | `www` | `example.co.uk` | Public suffix aware |
+| `*.example.com` | — | — | **ERROR**: wildcards not supported in MVP |
+
+**Algorithm**:
+
+1. If host contains `*`, emit warning event and skip (wildcards unsupported).
+2. Use public suffix list (e.g., `golang.org/x/net/publicsuffix`) to identify the registrable domain.
+3. `domainName` = registrable domain (e.g., `example.com`, `example.co.uk`).
+4. `subdomain` = everything before `domainName`, with trailing dot removed.
+5. If annotation overrides exist, use those values instead.
+
+**Edge Cases**:
+
+- IP addresses (e.g., `192.168.1.1`): Rejected with error event.
+- Localhost variants: Rejected in production mode.
+- Unicode/IDN domains: Must be converted to punycode before processing.
 
 ---
 
@@ -505,6 +531,20 @@ type PangolinResourceList struct {
     metav1.ListMeta `json:"metadata,omitempty"`
     Items           []PangolinResource `json:"items"`
 }
+
+// PangolinResourceStatus is set by pangolin-operator, read by PIC for status reflection
+type PangolinResourceStatus struct {
+    // URL is the public URL where the resource is accessible
+    URL string `json:"url,omitempty"`
+    // ResourceID is the Pangolin-side resource identifier
+    ResourceID string `json:"resourceId,omitempty"`
+    // Phase indicates the current state: Pending, Ready, Failed
+    Phase string `json:"phase,omitempty"`
+    // Conditions provide detailed status information
+    Conditions []metav1.Condition `json:"conditions,omitempty"`
+    // LastSyncTime is the last time the resource was synced with Pangolin
+    LastSyncTime *metav1.Time `json:"lastSyncTime,omitempty"`
+}
 ```
 
 ### 6.4 Main Entry
@@ -672,6 +712,218 @@ Metrics registration via `controller-runtime` metrics registry.
 
    - PIC can be deployed with a provided set of manifests (RBAC, Deployment).
    - Works with existing `pangolin-operator` installation without modification.
+
+---
+
+## 11. Testing Strategy
+
+### 11.1 Test Structure
+
+```text
+tests/
+├── unit/
+│   ├── hostsplit_test.go      # Host splitting algorithm
+│   ├── naming_test.go         # Deterministic naming
+│   └── config_test.go         # Configuration parsing
+├── integration/
+│   ├── reconciler_test.go     # Reconciliation logic with envtest
+│   └── lifecycle_test.go      # Create/Update/Delete flows
+└── e2e/
+    └── ingress_e2e_test.go    # Full cluster tests (optional for MVP)
+```
+
+### 11.2 Unit Tests
+
+- **Framework**: Go standard `testing` package with `testify/assert`
+- **Pattern**: Table-driven tests for all transformation logic
+- **Mocking**: `controller-runtime/pkg/client/fake` for Kubernetes API
+
+Example test cases:
+
+| Function | Test Case | Expected |
+|----------|-----------|----------|
+| `SplitHost` | `app.example.com` | subdomain=`app`, domain=`example.com` |
+| `SplitHost` | `example.com` | subdomain=`""`, domain=`example.com` |
+| `SplitHost` | `*.example.com` | error: wildcards unsupported |
+| `GenerateName` | ingress `foo` in `bar` ns | `pic-bar-foo-<hash>` |
+| `ResolveTunnel` | class `pangolin-eu` | tunnel from mapping |
+
+### 11.3 Integration Tests
+
+- **Framework**: `envtest` from controller-runtime (real API server, no kubelet)
+- **Scope**: Reconciliation loops, ownerReferences, garbage collection
+- **Fixtures**: Sample `PangolinTunnel` CRs pre-created
+
+Test scenarios:
+
+1. Create Ingress → PangolinResource created with correct spec
+2. Update Ingress host → PangolinResource updated
+3. Delete Ingress → PangolinResource garbage collected
+4. Missing tunnel → Warning event emitted, no PangolinResource
+5. Annotation override → Overridden values used
+
+### 11.4 Coverage Requirements
+
+- **Minimum**: 80% line coverage on `internal/controller/`
+- **Critical paths**: 100% coverage on reconciliation decision logic
+- **CI gate**: Tests must pass before merge
+
+---
+
+## 12. Build & CI/CD
+
+### 12.1 Dockerfile
+
+```dockerfile
+# Build stage
+FROM golang:1.21-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o manager ./cmd/manager
+
+# Runtime stage
+FROM gcr.io/distroless/static:nonroot
+WORKDIR /
+COPY --from=builder /app/manager .
+USER 65532:65532
+ENTRYPOINT ["/manager"]
+```
+
+### 12.2 Makefile Targets
+
+```makefile
+.PHONY: test build docker-build docker-push
+
+test:
+	go test ./... -coverprofile=coverage.out
+
+test-integration:
+	go test ./tests/integration/... -v
+
+build:
+	go build -o bin/manager ./cmd/manager
+
+docker-build:
+	docker build -t pangolin-ingress-controller:$(VERSION) .
+
+docker-push:
+	docker push $(REGISTRY)/pangolin-ingress-controller:$(VERSION)
+
+manifests:
+	kustomize build config/default > deploy/install.yaml
+```
+
+### 12.3 GitHub Actions Pipeline
+
+```yaml
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      - run: make test
+      - run: make test-integration
+  
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make docker-build
+      - if: github.ref == 'refs/heads/main'
+        run: make docker-push
+```
+
+### 12.4 Versioning
+
+- **Format**: Semantic versioning `vMAJOR.MINOR.PATCH`
+- **Tags**: Git tags trigger release builds
+- **Container tags**: `latest`, `vX.Y.Z`, `vX.Y`, `vX`
+
+---
+
+## 13. Error Handling & Edge Cases
+
+### 13.1 Ingress Validation Errors
+
+| Condition | Action | Event Type |
+|-----------|--------|------------|
+| Missing `spec.rules` | Skip, emit warning | `Warning` |
+| Multiple hosts | Process first only, emit warning | `Warning` |
+| Non-root path | Skip rule, emit warning | `Warning` |
+| Wildcard host `*.example.com` | Skip, emit error event | `Warning` |
+| IP address as host | Skip, emit error event | `Warning` |
+| Missing backend service | Requeue with backoff | `Warning` |
+| Backend port not exposed | Requeue with backoff | `Warning` |
+
+### 13.2 Tunnel Resolution Errors
+
+| Condition | Action | Retry |
+|-----------|--------|-------|
+| Tunnel not found | Emit warning, requeue | Yes, exponential backoff |
+| Tunnel exists but not ready | Emit info, requeue | Yes, 30s delay |
+| Invalid tunnel mapping config | Log error at startup | No (fatal) |
+
+### 13.3 PangolinResource Errors
+
+| Condition | Action |
+|-----------|--------|
+| Create fails (API error) | Requeue with backoff |
+| Update conflict | Re-fetch and retry |
+| Orphaned resource (no Ingress) | Delete if owned by PIC |
+| Multiple resources for same Ingress | Keep newest, delete others |
+
+### 13.4 Rate Limiting
+
+- **Default**: 10 reconciles/second per controller
+- **Backoff**: Exponential, max 5 minutes
+- **Config**: Adjustable via `PIC_MAX_CONCURRENT_RECONCILES`
+
+---
+
+## 14. IngressClass Resource
+
+PIC expects the `IngressClass` resource to exist. For MVP, PIC does **not** auto-create it.
+
+**Required IngressClass** (to be deployed alongside PIC):
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: pangolin
+  annotations:
+    ingressclass.kubernetes.io/is-default-class: "false"
+spec:
+  controller: pangolin.io/ingress-controller
+```
+
+For multi-tunnel mode, additional IngressClass resources:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: pangolin-edge-eu
+spec:
+  controller: pangolin.io/ingress-controller
+---
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: pangolin-edge-us
+spec:
+  controller: pangolin.io/ingress-controller
+```
+
+**Post-MVP**: PIC may auto-create IngressClass resources based on tunnel mapping configuration.
 
 ---
 

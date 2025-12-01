@@ -1,0 +1,82 @@
+package util
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"strings"
+)
+
+const (
+	// NamePrefix is the prefix for all PIC-managed resources.
+	NamePrefix = "pic"
+
+	// MaxNameLength is the maximum length for Kubernetes resource names.
+	MaxNameLength = 63
+)
+
+// GenerateName creates a deterministic resource name for a PangolinResource.
+// Format: pic-<namespace>-<ingress>-<hash>
+//
+// The hash ensures uniqueness when the same ingress name exists in different
+// namespaces or exposes different hosts.
+func GenerateName(namespace, ingressName, host string) string {
+	// Create hash from all components for uniqueness
+	hashInput := fmt.Sprintf("%s/%s/%s", namespace, ingressName, host)
+	hash := sha256.Sum256([]byte(hashInput))
+	shortHash := hex.EncodeToString(hash[:4]) // 8 characters
+
+	// Build the name
+	name := fmt.Sprintf("%s-%s-%s-%s", NamePrefix, namespace, ingressName, shortHash)
+
+	// Ensure it's a valid Kubernetes name
+	name = sanitizeName(name)
+
+	// Truncate if necessary (keep the hash at the end)
+	if len(name) > MaxNameLength {
+		// Keep prefix and hash, truncate middle
+		prefixLen := len(NamePrefix) + 1 + len(namespace) + 1 // "pic-namespace-"
+		suffixLen := len(shortHash) + 1                       // "-hash"
+		availableLen := MaxNameLength - prefixLen - suffixLen
+
+		if availableLen > 0 {
+			truncatedIngress := ingressName
+			if len(truncatedIngress) > availableLen {
+				truncatedIngress = truncatedIngress[:availableLen]
+			}
+			name = fmt.Sprintf("%s-%s-%s-%s", NamePrefix, namespace, truncatedIngress, shortHash)
+		} else {
+			// Extreme case: just use prefix and hash
+			name = fmt.Sprintf("%s-%s", NamePrefix, shortHash)
+		}
+	}
+
+	return name
+}
+
+// sanitizeName ensures the name is a valid Kubernetes resource name.
+func sanitizeName(name string) string {
+	// Convert to lowercase
+	name = strings.ToLower(name)
+
+	// Replace invalid characters with hyphens
+	var result strings.Builder
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			result.WriteRune(r)
+		} else {
+			result.WriteRune('-')
+		}
+	}
+	name = result.String()
+
+	// Remove leading/trailing hyphens
+	name = strings.Trim(name, "-")
+
+	// Collapse multiple hyphens
+	for strings.Contains(name, "--") {
+		name = strings.ReplaceAll(name, "--", "-")
+	}
+
+	return name
+}

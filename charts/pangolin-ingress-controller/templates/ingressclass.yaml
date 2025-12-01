@@ -1,0 +1,26 @@
+{{- if .Values.ingressClass.create -}}
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: {{ .Values.ingressClass.name }}
+  labels:
+    {{- include "pangolin-ingress-controller.labels" . | nindent 4 }}
+  {{- if .Values.ingressClass.default }}
+  annotations:
+    ingressclass.kubernetes.io/is-default-class: "true"
+  {{- end }}
+spec:
+  controller: pangolin.io/ingress-controller
+---
+{{- range .Values.ingressClass.additional }}
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: pangolin-{{ .name }}
+  labels:
+    {{- include "pangolin-ingress-controller.labels" $ | nindent 4 }}
+spec:
+  controller: pangolin.io/ingress-controller
+---
+{{- end }}
+{{- end }}
