@@ -13,7 +13,7 @@
 
 ```bash
 # Apply RBAC and Deployment
-kubectl apply -f https://raw.githubusercontent.com/<repo>/main/deploy/install.yaml
+kubectl apply -f https://raw.githubusercontent.com/stefb69/main/deploy/install.yaml
 
 # Or using kustomize
 kubectl apply -k config/default

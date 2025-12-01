@@ -35,6 +35,12 @@ const (
 	// AnnotationSubdomain overrides the subdomain.
 	AnnotationSubdomain = "pangolin.ingress.k8s.io/subdomain"
 
+	// AnnotationSSO enables SSO authentication.
+	AnnotationSSO = "pangolin.ingress.k8s.io/sso"
+
+	// AnnotationBlockAccess blocks access until authenticated.
+	AnnotationBlockAccess = "pangolin.ingress.k8s.io/block-access"
+
 	// LabelIngressUID identifies the source Ingress.
 	LabelIngressUID = "pic.ingress.k8s.io/uid"
 
@@ -262,6 +268,17 @@ func (r *IngressReconciler) buildDesiredPangolinResource(
 	// Generate display name for Pangolin UI
 	displayName := fmt.Sprintf("%s/%s", ingress.Namespace, ingress.Name)
 
+	// Protocol is always "http" for Ingress resources
+	// Pangolin handles TLS termination automatically
+	// The TLS configuration in Ingress is informational only
+	protocol := "http"
+	_ = ingress.Spec.TLS // TLS config available for future use if needed
+
+	// Parse authentication annotations
+	// By default: SSO disabled, access allowed (no blocking)
+	ssoEnabled := ingress.Annotations[AnnotationSSO] == "true"
+	blockAccess := ingress.Annotations[AnnotationBlockAccess] == "true"
+
 	return &pangolincrd.PangolinResource{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -275,14 +292,16 @@ func (r *IngressReconciler) buildDesiredPangolinResource(
 		Spec: pangolincrd.PangolinResourceSpec{
 			Name:     displayName,
 			Enabled:  true,
-			Protocol: "http",
+			Protocol: protocol,
 			TunnelRef: pangolincrd.TunnelRef{
 				Name:      tunnelName,
 				Namespace: tunnelNamespace,
 			},
 			HTTPConfig: &pangolincrd.HTTPConfig{
-				DomainName: domain,
-				Subdomain:  subdomain,
+				DomainName:  domain,
+				Subdomain:   subdomain,
+				SSO:         ssoEnabled,
+				BlockAccess: blockAccess,
 			},
 			Target: &pangolincrd.Target{
 				IP:     backendHost,
@@ -362,6 +381,12 @@ func (r *IngressReconciler) specChanged(current, desired *pangolincrd.PangolinRe
 			return true
 		}
 		if current.HTTPConfig.Subdomain != desired.HTTPConfig.Subdomain {
+			return true
+		}
+		if current.HTTPConfig.SSO != desired.HTTPConfig.SSO {
+			return true
+		}
+		if current.HTTPConfig.BlockAccess != desired.HTTPConfig.BlockAccess {
 			return true
 		}
 	}

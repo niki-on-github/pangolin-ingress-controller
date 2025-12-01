@@ -55,6 +55,15 @@ type HTTPConfig struct {
 
 	// Subdomain is the subdomain for the exposed endpoint.
 	Subdomain string `json:"subdomain,omitempty"`
+
+	// SSO enables SSO authentication for this resource.
+	// +optional
+	SSO bool `json:"sso"`
+
+	// BlockAccess blocks access until user is authenticated.
+	// Only effective when SSO is enabled.
+	// +optional
+	BlockAccess bool `json:"blockAccess"`
 }
 
 // Target defines the backend service configuration.
