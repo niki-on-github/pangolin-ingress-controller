@@ -1,0 +1,67 @@
+# PangolinResource CRD Contract
+# This defines the structure PIC creates for pangolin-operator to process
+# API Version: tunnel.pangolin.io/v1alpha1
+
+apiVersion: tunnel.pangolin.io/v1alpha1
+kind: PangolinResource
+metadata:
+  # Name pattern: pic-<namespace>-<ingress>-<hash>
+  name: pic-example-myapp-a1b2c3d4
+  namespace: example
+  labels:
+    # Required labels for PIC management
+    pic.ingress.k8s.io/uid: "12345678-1234-1234-1234-123456789abc"
+    pic.ingress.k8s.io/name: "myapp"
+    pic.ingress.k8s.io/namespace: "example"
+  ownerReferences:
+    - apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      name: myapp
+      uid: 12345678-1234-1234-1234-123456789abc
+      controller: true
+      blockOwnerDeletion: true
+spec:
+  # Whether the resource is active
+  enabled: true
+  
+  # Protocol for external access
+  protocol: http  # or "https"
+  
+  # Reference to the tunnel to use
+  tunnelRef:
+    name: default  # Must match existing PangolinTunnel
+  
+  # HTTP-specific configuration
+  httpConfig:
+    # Domain extracted from Ingress host or annotation override
+    domainName: "example.com"
+    # Subdomain extracted from Ingress host or annotation override
+    subdomain: "myapp"
+  
+  # Backend target configuration
+  target:
+    # Service FQDN (constructed from Ingress backend)
+    ip: "myapp-service.example.svc.cluster.local"
+    # Service port from Ingress backend
+    port: 8080
+    # Backend protocol
+    method: http  # or "https"
+
+# Status is set by pangolin-operator, not by PIC
+# Included here for documentation purposes
+status:
+  # Public URL where the resource is accessible
+  url: "https://myapp.example.com"
+  # Pangolin-side resource identifier
+  resourceId: "res_abc123"
+  # Current state: Pending, Ready, Failed
+  phase: "Ready"
+  # Last time synced with Pangolin
+  lastSyncTime: "2025-11-30T18:00:00Z"
+  # Detailed conditions
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: "Synced"
+      message: "Resource synced with Pangolin"
+      lastTransitionTime: "2025-11-30T18:00:00Z"

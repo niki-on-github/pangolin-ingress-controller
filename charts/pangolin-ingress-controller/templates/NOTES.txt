@@ -1,0 +1,61 @@
+🦎 Pangolin Ingress Controller installed!
+
+{{- if .Values.ingressClass.create }}
+
+📋 IngressClass created: {{ .Values.ingressClass.name }}
+{{- if .Values.ingressClass.default }}
+   (set as default IngressClass)
+{{- end }}
+{{- range .Values.ingressClass.additional }}
+   Additional: pangolin-{{ .name }}
+{{- end }}
+{{- end }}
+
+🚀 Quick Start:
+
+1. Ensure pangolin-operator is installed with at least one PangolinTunnel:
+
+   kubectl get pangolintunnels
+
+2. Create an Ingress with ingressClassName: {{ .Values.ingressClass.name }}
+
+   cat <<EOF | kubectl apply -f -
+   apiVersion: networking.k8s.io/v1
+   kind: Ingress
+   metadata:
+     name: my-app
+   spec:
+     ingressClassName: {{ .Values.ingressClass.name }}
+     rules:
+       - host: app.example.com
+         http:
+           paths:
+             - path: /
+               pathType: Prefix
+               backend:
+                 service:
+                   name: my-app
+                   port:
+                     number: 8080
+   EOF
+
+3. Check the created PangolinResource:
+
+   kubectl get pangolinresources
+
+📊 Monitoring:
+{{- if .Values.metrics.enabled }}
+   Metrics endpoint: http://{{ include "pangolin-ingress-controller.fullname" . }}-metrics:{{ .Values.metrics.port }}/metrics
+{{- if .Values.metrics.serviceMonitor.enabled }}
+   ServiceMonitor: enabled (Prometheus will scrape automatically)
+{{- end }}
+{{- else }}
+   Metrics: disabled
+{{- end }}
+
+📖 Configuration:
+   Default tunnel: {{ .Values.config.defaultTunnelName }}
+   Backend scheme: {{ .Values.config.backendScheme }}
+   Log level: {{ .Values.config.logLevel }}
+
+For more information, visit: https://github.com/wizzz/pangolin-ingress-controller

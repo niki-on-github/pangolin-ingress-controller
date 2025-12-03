@@ -1,0 +1,55 @@
+# Ingress Annotations Contract
+# Annotations recognized by Pangolin Ingress Controller
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: example-with-annotations
+  namespace: default
+  annotations:
+    # Enable/disable PIC management (optional)
+    # Default: "true" when ingressClassName matches
+    # Set to "false" to temporarily disable without deleting Ingress
+    pangolin.ingress.k8s.io/enabled: "true"
+    
+    # Override tunnel name (optional)
+    # Default: derived from ingressClassName or PIC_DEFAULT_TUNNEL_NAME
+    # Must reference existing PangolinTunnel resource
+    pangolin.ingress.k8s.io/tunnel-name: "production-tunnel"
+    
+    # Override domain name (optional)
+    # Default: extracted from spec.rules[].host using public suffix
+    pangolin.ingress.k8s.io/domain-name: "example.com"
+    
+    # Override subdomain (optional)
+    # Default: extracted from spec.rules[].host
+    pangolin.ingress.k8s.io/subdomain: "custom-subdomain"
+
+spec:
+  # IngressClass determines if PIC manages this Ingress
+  # Valid patterns:
+  #   - "pangolin"           → uses default tunnel
+  #   - "pangolin-<suffix>"  → uses tunnel from mapping
+  ingressClassName: pangolin
+  
+  rules:
+    - host: app.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: my-service
+                port:
+                  number: 8080
+
+---
+# Annotation Reference Table
+#
+# | Annotation                           | Type   | Default        | Description                    |
+# |--------------------------------------|--------|----------------|--------------------------------|
+# | pangolin.ingress.k8s.io/enabled      | bool   | "true"         | Enable/disable management      |
+# | pangolin.ingress.k8s.io/tunnel-name  | string | from class/env | Tunnel to use                  |
+# | pangolin.ingress.k8s.io/domain-name  | string | from host      | Override domain                |
+# | pangolin.ingress.k8s.io/subdomain    | string | from host      | Override subdomain             |

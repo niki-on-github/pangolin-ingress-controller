@@ -1,0 +1,30 @@
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Documentation
+*.md
+docs/
+specs/
+speckit/
+.specify/
+.windsurf/
+
+# Tests
+tests/
+*_test.go
+coverage.*
+
+# Development
+.env*
+Makefile
+.golangci.yml
+
+# Build artifacts (we build fresh in Docker)
+bin/
+vendor/

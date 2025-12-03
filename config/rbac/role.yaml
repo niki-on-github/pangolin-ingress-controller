@@ -1,0 +1,34 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pangolin-ingress-controller
+rules:
+  # Read Ingress resources
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch"]
+
+  # Read Services (for backend resolution)
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch"]
+
+  # Read PangolinTunnel (for tunnel validation)
+  - apiGroups: ["tunnel.pangolin.io"]
+    resources: ["pangolintunnels"]
+    verbs: ["get", "list", "watch"]
+
+  # Full access to PangolinResource (managed by PIC)
+  - apiGroups: ["tunnel.pangolin.io"]
+    resources: ["pangolinresources"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Create events on Ingress resources
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+
+  # Leader election
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

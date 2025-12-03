@@ -1,0 +1,46 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+manager
+
+# Test binary
+*.test
+
+# Output
+*.out
+coverage.out
+coverage.html
+
+# Dependency directories
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Build
+build/
+dist/
+
+# Logs
+*.log
+
+# Kubernetes
+kubeconfig
+*.secret.yaml

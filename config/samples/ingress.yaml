@@ -1,0 +1,26 @@
+# Example Ingress for Pangolin Ingress Controller
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: example-app
+  namespace: default
+  # Optional annotations for customization:
+  # annotations:
+  #   pangolin.ingress.k8s.io/tunnel-name: "my-tunnel"
+  #   pangolin.ingress.k8s.io/domain-name: "example.com"
+  #   pangolin.ingress.k8s.io/subdomain: "myapp"
+  #   pangolin.ingress.k8s.io/enabled: "true"
+spec:
+  # Use "pangolin" for default tunnel, or "pangolin-<name>" for specific tunnel
+  ingressClassName: pangolin
+  rules:
+    - host: app.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: example-app
+                port:
+                  number: 8080

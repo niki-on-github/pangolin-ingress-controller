@@ -1,0 +1,168 @@
+# Default values for pangolin-ingress-controller
+
+# -- Number of replicas
+replicaCount: 1
+
+image:
+  # -- Image repository
+  repository: registry.wizzz.net/stefb/pangolin-ingress-controller
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+  # -- Overrides the image tag (default is the chart appVersion)
+  tag: ""
+
+# -- Image pull secrets
+imagePullSecrets: []
+
+# -- Override the name of the chart
+nameOverride: ""
+
+# -- Override the full name of the chart
+fullnameOverride: ""
+
+serviceAccount:
+  # -- Create service account
+  create: true
+  # -- Annotations for service account
+  annotations: {}
+  # -- Name of the service account (generated if not set)
+  name: ""
+
+# -- Pod annotations
+podAnnotations: {}
+
+# -- Pod labels
+podLabels: {}
+
+# -- Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities:
+    drop:
+      - ALL
+
+# -- Resource requests and limits
+resources:
+  limits:
+    cpu: 200m
+    memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 64Mi
+
+# -- Node selector
+nodeSelector: {}
+
+# -- Tolerations
+tolerations: []
+
+# -- Affinity rules
+affinity: {}
+
+# -- Priority class name
+priorityClassName: ""
+
+# Controller configuration
+config:
+  # -- Default tunnel name for ingressClassName: pangolin
+  defaultTunnelName: "default"
+  
+  # -- Backend scheme (http or https)
+  backendScheme: "http"
+  
+  # -- How often to resync all resources
+  resyncPeriod: "5m"
+  
+  # -- Log level (debug, info, warn, error)
+  logLevel: "info"
+  
+  # -- Restrict to specific namespaces (comma-separated, empty = all)
+  watchNamespaces: ""
+  
+  # -- Tunnel class mapping (ingressClass suffix -> tunnel name)
+  # Example:
+  #   eu: tunnel-eu
+  #   us: tunnel-us
+  tunnelClassMapping: {}
+
+# Leader election
+leaderElection:
+  # -- Enable leader election
+  enabled: true
+  # -- Lease duration
+  leaseDuration: 15s
+  # -- Renew deadline
+  renewDeadline: 10s
+  # -- Retry period
+  retryPeriod: 2s
+
+# Metrics configuration
+metrics:
+  # -- Enable metrics endpoint
+  enabled: true
+  # -- Metrics port
+  port: 8080
+  
+  serviceMonitor:
+    # -- Create ServiceMonitor resource
+    enabled: false
+    # -- Additional labels for ServiceMonitor
+    labels: {}
+    # -- Scrape interval
+    interval: 30s
+    # -- Scrape timeout
+    scrapeTimeout: 10s
+
+# Health probes
+probes:
+  # -- Health probe port
+  port: 8081
+  
+  liveness:
+    # -- Initial delay seconds
+    initialDelaySeconds: 15
+    # -- Period seconds
+    periodSeconds: 20
+    # -- Timeout seconds
+    timeoutSeconds: 1
+    # -- Failure threshold
+    failureThreshold: 3
+  
+  readiness:
+    # -- Initial delay seconds
+    initialDelaySeconds: 5
+    # -- Period seconds
+    periodSeconds: 10
+    # -- Timeout seconds
+    timeoutSeconds: 1
+    # -- Success threshold
+    successThreshold: 1
+    # -- Failure threshold
+    failureThreshold: 3
+
+# IngressClass configuration
+ingressClass:
+  # -- Create IngressClass resource
+  create: true
+  # -- IngressClass name
+  name: pangolin
+  # -- Set as default IngressClass
+  default: false
+  # -- Additional IngressClasses for multi-tunnel setup
+  # Example:
+  #   - name: pangolin-eu
+  #   - name: pangolin-us
+  additional: []
+
+# RBAC configuration
+rbac:
+  # -- Create RBAC resources
+  create: true
