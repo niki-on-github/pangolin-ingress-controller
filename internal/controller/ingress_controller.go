@@ -239,27 +239,56 @@ func (r *IngressReconciler) buildDesiredPangolinResource(
 		subdomain = override
 	}
 
-	// Get backend from first path (MVP: only root path)
-	var backendHost string
-	var backendPort int32
+	// Build targets from all paths in the Ingress rule
+	var targets []pangolincrd.Target
 
 	if len(ingress.Spec.Rules) > 0 && ingress.Spec.Rules[0].HTTP != nil {
 		for _, path := range ingress.Spec.Rules[0].HTTP.Paths {
-			if path.Path == "/" || path.Path == "" {
-				if path.Backend.Service != nil {
-					backendHost = fmt.Sprintf("%s.%s.svc.cluster.local",
-						path.Backend.Service.Name, ingress.Namespace)
-					if path.Backend.Service.Port.Number != 0 {
-						backendPort = path.Backend.Service.Port.Number
-					}
-				}
-				break
+			if path.Backend.Service == nil {
+				continue
 			}
+
+			backendHost := fmt.Sprintf("%s.%s.svc.cluster.local",
+				path.Backend.Service.Name, ingress.Namespace)
+			var backendPort int32
+			if path.Backend.Service.Port.Number != 0 {
+				backendPort = path.Backend.Service.Port.Number
+			}
+
+			// Map Ingress pathType to Pangolin pathMatchType
+			pathMatchType := "prefix" // default
+			if path.PathType != nil {
+				switch *path.PathType {
+				case networkingv1.PathTypeExact:
+					pathMatchType = "exact"
+				case networkingv1.PathTypePrefix:
+					pathMatchType = "prefix"
+				case networkingv1.PathTypeImplementationSpecific:
+					pathMatchType = "prefix" // default to prefix
+				}
+			}
+
+			// Calculate priority based on path specificity
+			// Longer paths get higher priority (matched first)
+			priority := int32(100 + len(path.Path)*10)
+			if priority > 1000 {
+				priority = 1000
+			}
+
+			target := pangolincrd.Target{
+				IP:            backendHost,
+				Port:          backendPort,
+				Method:        r.Config.BackendScheme,
+				Path:          path.Path,
+				PathMatchType: pathMatchType,
+				Priority:      priority,
+			}
+			targets = append(targets, target)
 		}
 	}
 
-	if backendHost == "" {
-		return nil, fmt.Errorf("no valid backend found for root path")
+	if len(targets) == 0 {
+		return nil, fmt.Errorf("no valid backends found in Ingress paths")
 	}
 
 	// Generate deterministic name
@@ -303,11 +332,7 @@ func (r *IngressReconciler) buildDesiredPangolinResource(
 				SSO:         ssoEnabled,
 				BlockAccess: blockAccess,
 			},
-			Target: &pangolincrd.Target{
-				IP:     backendHost,
-				Port:   backendPort,
-				Method: r.Config.BackendScheme,
-			},
+			Targets: targets,
 		},
 	}, nil
 }
@@ -390,14 +415,18 @@ func (r *IngressReconciler) specChanged(current, desired *pangolincrd.PangolinRe
 			return true
 		}
 	}
-	if current.Target != nil && desired.Target != nil {
-		if current.Target.IP != desired.Target.IP {
+	// Compare targets arrays
+	if len(current.Targets) != len(desired.Targets) {
+		return true
+	}
+	for i := range current.Targets {
+		if i >= len(desired.Targets) {
 			return true
 		}
-		if current.Target.Port != desired.Target.Port {
-			return true
-		}
-		if current.Target.Method != desired.Target.Method {
+		ct := current.Targets[i]
+		dt := desired.Targets[i]
+		if ct.IP != dt.IP || ct.Port != dt.Port || ct.Method != dt.Method ||
+			ct.Path != dt.Path || ct.PathMatchType != dt.PathMatchType || ct.Priority != dt.Priority {
 			return true
 		}
 	}

@@ -35,8 +35,9 @@ type PangolinResourceSpec struct {
 	// HTTPConfig contains HTTP-specific configuration.
 	HTTPConfig *HTTPConfig `json:"httpConfig,omitempty"`
 
-	// Target defines the backend service to route to.
-	Target *Target `json:"target,omitempty"`
+	// Targets defines the backend services to route to.
+	// Multiple targets enable path-based routing.
+	Targets []Target `json:"targets,omitempty"`
 }
 
 // TunnelRef is a reference to a PangolinTunnel.
@@ -76,6 +77,18 @@ type Target struct {
 
 	// Method is the backend protocol ("http" or "https").
 	Method string `json:"method,omitempty"`
+
+	// Path is the URL path to match (e.g., "/api").
+	// +optional
+	Path string `json:"path,omitempty"`
+
+	// PathMatchType defines how to match the path: "exact", "prefix", or "regex".
+	// +optional
+	PathMatchType string `json:"pathMatchType,omitempty"`
+
+	// Priority determines matching order (higher = matched first).
+	// +optional
+	Priority int32 `json:"priority,omitempty"`
 }
 
 // PangolinResourceStatus defines the observed state of PangolinResource.

@@ -37,9 +37,9 @@ func (in *PangolinResourceSpec) DeepCopyInto(out *PangolinResourceSpec) {
 		out.HTTPConfig = new(HTTPConfig)
 		*out.HTTPConfig = *in.HTTPConfig
 	}
-	if in.Target != nil {
-		out.Target = new(Target)
-		*out.Target = *in.Target
+	if in.Targets != nil {
+		out.Targets = make([]Target, len(in.Targets))
+		copy(out.Targets, in.Targets)
 	}
 }
 

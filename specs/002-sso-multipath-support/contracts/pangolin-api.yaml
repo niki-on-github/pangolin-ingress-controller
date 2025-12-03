@@ -1,0 +1,228 @@
+# Pangolin API Contract for SSO & Multi-Path Support
+# Based on analysis of pangolin/server/routers/resource/*.ts
+
+openapi: 3.0.3
+info:
+  title: Pangolin Resource API (Subset)
+  version: 1.0.0
+  description: API endpoints used by pangolin-operator for SSO and target management
+
+paths:
+  /org/{orgId}/resource:
+    put:
+      operationId: createResource
+      summary: Create a new resource
+      description: |
+        Creates a new HTTP or raw resource. NOTE: SSO fields are NOT accepted here.
+        Use updateResource after creation to set SSO configuration.
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHttpResourceRequest'
+      responses:
+        '201':
+          description: Resource created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+
+  /resource/{resourceId}:
+    post:
+      operationId: updateResource
+      summary: Update an existing resource
+      description: |
+        Updates resource properties including SSO configuration.
+        This is the ONLY way to set sso and blockAccess fields.
+      parameters:
+        - name: resourceId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateResourceRequest'
+      responses:
+        '200':
+          description: Resource updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+
+  /resource/{resourceId}/target:
+    put:
+      operationId: createTarget
+      summary: Create a target for a resource
+      description: |
+        Creates a backend target with optional path-based routing configuration.
+      parameters:
+        - name: resourceId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTargetRequest'
+      responses:
+        '201':
+          description: Target created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Target'
+
+components:
+  schemas:
+    CreateHttpResourceRequest:
+      type: object
+      required:
+        - name
+        - http
+        - protocol
+        - domainId
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        http:
+          type: boolean
+          enum: [true]
+        protocol:
+          type: string
+          enum: [tcp, udp]
+        subdomain:
+          type: string
+          nullable: true
+        domainId:
+          type: string
+        stickySession:
+          type: boolean
+      # NOTE: sso and blockAccess NOT accepted here
+
+    UpdateResourceRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        subdomain:
+          type: string
+          nullable: true
+        ssl:
+          type: boolean
+        sso:
+          type: boolean
+          description: Enable SSO authentication
+        blockAccess:
+          type: boolean
+          description: Block access until authenticated (requires sso=true)
+        emailWhitelistEnabled:
+          type: boolean
+        enabled:
+          type: boolean
+        domainId:
+          type: string
+
+    CreateTargetRequest:
+      type: object
+      required:
+        - siteId
+        - ip
+        - port
+      properties:
+        siteId:
+          type: integer
+          minimum: 1
+        ip:
+          type: string
+          description: Target hostname or IP
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        method:
+          type: string
+          nullable: true
+          description: HTTP method (http/https)
+        enabled:
+          type: boolean
+          default: true
+        path:
+          type: string
+          nullable: true
+          description: URL path to match (e.g., /api)
+        pathMatchType:
+          type: string
+          enum: [exact, prefix, regex]
+          nullable: true
+          description: How to match the path
+        rewritePath:
+          type: string
+          nullable: true
+          description: Rewrite path before forwarding
+        rewritePathType:
+          type: string
+          enum: [exact, prefix, regex, stripPrefix]
+          nullable: true
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          default: 100
+          description: Match priority (higher = matched first)
+
+    Resource:
+      type: object
+      properties:
+        resourceId:
+          type: integer
+        name:
+          type: string
+        subdomain:
+          type: string
+        fullDomain:
+          type: string
+        sso:
+          type: boolean
+        blockAccess:
+          type: boolean
+        enabled:
+          type: boolean
+
+    Target:
+      type: object
+      properties:
+        targetId:
+          type: integer
+        resourceId:
+          type: integer
+        ip:
+          type: string
+        port:
+          type: integer
+        path:
+          type: string
+        pathMatchType:
+          type: string
+        priority:
+          type: integer
