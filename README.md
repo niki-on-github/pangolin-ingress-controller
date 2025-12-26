@@ -1,5 +1,8 @@
 # Pangolin Ingress Controller (PIC)
 
+> [!CAUTION]
+> The file `./cmd/manager` is missing, so we are not able to compile this repository.
+
 A Kubernetes Ingress Controller that exposes services via [Pangolin](https://github.com/fosrl/pangolin) by creating `PangolinResource` CRDs.
 
 ## Overview
